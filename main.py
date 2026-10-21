@@ -31,11 +31,15 @@ def main():
             losses.append(net.train_step(x_train[idx], y_train[idx], LR))
         print(f"epoch {epoch + 1}: loss {np.mean(losses):.4f}  test acc {accuracy(net, x_test, y_test):.3f}")
 
-    first_img = x_test[0]
+    zs, acts = net.forward_full(x_train[:64])
+    print(len(zs), [z.shape for z in zs])
+    print(len(acts), [a.shape for a in acts])
+    print(np.allclose(net.forward(x_train[:64]), acts[-1]))
+    print(net.cost(x_train[:64], y_train[:64]))
+    net.back(x_train[:64],y_train[:64])
+
     
-    z = net.forward(first_img)
-    net.softmax(z)
-    
+
 
 
 

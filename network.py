@@ -42,27 +42,65 @@ class Network:
         exp_z = np.exp(shifted)
 
         return exp_z / np.sum(exp_z, axis=-1, keepdims=True)
-            
-
+    
     def forward(self, x):
         #batch,784
         #every row is an image
+        zs, acts = self.forward_full(x)
+        return acts[-1]
+    
+    def forward_full(self,x):
+        acts = [x]
+        zs = []
         a = x
         last = len(self.W) - 1 #twice
+
         for l, (w, b) in enumerate(zip(self.W, self.b)):
-            z = a @ w.T + b        
+            z = a @ w.T + b     
+            zs.append(z)   
             if (l == last):
                 a = z 
             else:
                 a = np.maximum(0,z)
-        return a
+            acts.append(a)
+        return zs, acts
+
+
+        
     
-    
-    def cost(self, x):
-        return 0.0
+    def cost(self, x, y):
+        #given x and y, we find 
+        z = self.forward(x)
+        p = self.softmax(z)
+        #cross entryo
+        
+        
+        p = np.clip(p,1e-12,1)
+
+        #if 0 we are cooked so we clamp
+        correct_set = p[np.arange(len(y)),y]
+        loss = -np.log(correct_set)
+
+        return np.mean(loss)
+
+    def back(self, x, y):
+        zs, acts = self.forward_full(x)
+        #logits are in zs
+        p = self.softmax(zs[-1])
+        one_hot = np.eye(10)[y]
+
+        print(one_hot)
+        return one_hot
+
+        
+
+        
+
+
+
 
     def train_step(self, x, y, lr):
-        return 0.0
+        return self.cost(x,y)
 
 
     def predict(self, x):
