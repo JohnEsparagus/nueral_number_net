@@ -32,10 +32,9 @@ def main():
         print(f"epoch {epoch + 1}: loss {np.mean(losses):.4f}  test acc {accuracy(net, x_test, y_test):.3f}")
 
     first_img = x_test[0]
-    net.print_ascii(first_img, x=28, y=28)
-
     
-    net.weighted_sum(first_img,0)
+    z = net.forward(first_img)
+    net.softmax(z)
     
 
 

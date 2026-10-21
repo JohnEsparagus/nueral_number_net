@@ -32,16 +32,38 @@ class Network:
         # a is input image so... its just the pixels
         a = image.reshape(-1)
         z = self.W[layer] @ a + self.b[layer]
-        print(z)
+        return z
 
 
+    def softmax(self, z):
+        #for the total digits, what sthe probilbity its that
+
+        shifted =z - z.max(axis =-1, keepdims=True)
+        exp_z = np.exp(shifted)
+
+        return exp_z / np.sum(exp_z, axis=-1, keepdims=True)
+            
 
     def forward(self, x):
-
-        return np.zeros((x.shape[0], self.sizes[-1]))
+        #batch,784
+        #every row is an image
+        a = x
+        last = len(self.W) - 1 #twice
+        for l, (w, b) in enumerate(zip(self.W, self.b)):
+            z = a @ w.T + b        
+            if (l == last):
+                a = z 
+            else:
+                a = np.maximum(0,z)
+        return a
+    
+    
+    def cost(self, x):
+        return 0.0
 
     def train_step(self, x, y, lr):
         return 0.0
+
 
     def predict(self, x):
         return self.forward(x).argmax(axis=1)
