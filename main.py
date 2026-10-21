@@ -31,6 +31,11 @@ def main():
             losses.append(net.train_step(x_train[idx], y_train[idx], LR))
         print(f"epoch {epoch + 1}: loss {np.mean(losses):.4f}  test acc {accuracy(net, x_test, y_test):.3f}")
 
+    first_img = x_test[0]
+    net.print_ascii(first_img, x=28, y=28)
+    
+
+
 
 if __name__ == "__main__":
     main()

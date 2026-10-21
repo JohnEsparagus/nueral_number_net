@@ -9,7 +9,25 @@ class Network:
         self.W = [rng.normal(0, 0.01, (n_out, n_in)) for n_in, n_out in zip(sizes, sizes[1:])]
         self.b = [np.zeros(n_out) for n_out in sizes[1:]]
 
+    def print_ascii(self,img,x,y):
+        arr = [[" " for j in range(x)] for i in range(y)]
+        img = img.reshape(x,y)
+        for i in range(x):
+            for j in range(y):
+                p = img[i][j]
+                if p > 0.5:
+                    arr[i][j] = "#"
+
+        for row in arr:
+            print("".join(row))
+
+        return None
+                 
+                
+
+
     def forward(self, x):
+
         return np.zeros((x.shape[0], self.sizes[-1]))
 
     def train_step(self, x, y, lr):
