@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+env/
+.env/
+venv/
+.venv/
+
+# Datasets and Large Data Files
+*.csv
+*.gz
+*.pkl
+*.npy
+*.npz
+*.pt
+*.pth
+data/
+
+# IDE / Operating System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
