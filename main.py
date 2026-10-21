@@ -33,6 +33,9 @@ def main():
 
     first_img = x_test[0]
     net.print_ascii(first_img, x=28, y=28)
+
+    
+    net.weighted_sum(first_img,0)
     
 
 

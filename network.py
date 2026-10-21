@@ -22,8 +22,18 @@ class Network:
             print("".join(row))
 
         return None
-                 
+    
+
                 
+    def weighted_sum(self, image, layer=0):
+        #784 pixels
+        #128*784 weights
+        # 128 biases
+        # a is input image so... its just the pixels
+        a = image.reshape(-1)
+        z = self.W[layer] @ a + self.b[layer]
+        print(z)
+
 
 
     def forward(self, x):
