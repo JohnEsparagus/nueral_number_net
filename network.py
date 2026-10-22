@@ -3,6 +3,8 @@ import numpy as np
 
 class Network:
 
+    learning_rate = 0.05
+
     def __init__(self, sizes, seed=0):
         self.sizes = sizes
         rng = np.random.default_rng(seed)
@@ -89,18 +91,36 @@ class Network:
         p = self.softmax(zs[-1])
         one_hot = np.eye(10)[y]
 
-        print(one_hot)
-        return one_hot
+        # we know logits so calc parameters.
+
+        delta = p - one_hot
+        n = x.shape[0]
+
+
+        out_w = (delta.T @ acts[1])/n
+        out_b = np.sum(delta, axis=0) / n
+        hidden_delta = (delta @ self.W[1]) * (zs[0] > 0) 
+
+        hidden_w = (hidden_delta.T @ x) / n
+        hidden_b = np.sum(hidden_delta, axis=0) / n
+
+        self.W[1] -= out_w * self.learning_rate
+        self.b[1] -= out_b * self.learning_rate
+
+        self.W[0] -= self.learning_rate * hidden_w
+        self.b[0] -= self.learning_rate * hidden_b
+
+
+        return
 
         
-
-        
-
-
 
 
     def train_step(self, x, y, lr):
-        return self.cost(x,y)
+        loss = self.cost(x,y)
+        self.back(x,y)
+        return loss
+        
 
 
     def predict(self, x):
