@@ -3,7 +3,6 @@ import numpy as np
 
 class Network:
 
-    learning_rate = 0.05
 
     def __init__(self, sizes, seed=0):
         self.sizes = sizes
@@ -85,7 +84,7 @@ class Network:
 
         return np.mean(loss)
 
-    def back(self, x, y):
+    def back(self, x, y, lr):
         zs, acts = self.forward_full(x)
         #logits are in zs
         p = self.softmax(zs[-1])
@@ -93,32 +92,34 @@ class Network:
 
         # we know logits so calc parameters.
 
-        delta = p - one_hot
         n = x.shape[0]
+        l = len(self.sizes)
+        delta = (p - one_hot) / n
 
+        db_W = [None] * len(self.W)
+        db_b = [None] * len(self.b)
 
-        out_w = (delta.T @ acts[1])/n
-        out_b = np.sum(delta, axis=0) / n
-        hidden_delta = (delta @ self.W[1]) * (zs[0] > 0) 
+        for i in reversed(range(len(self.W))):
+            db_W[i] = (delta.T @ acts[i])
+            db_b[i] = np.sum(delta, axis=0)
 
-        hidden_w = (hidden_delta.T @ x) / n
-        hidden_b = np.sum(hidden_delta, axis=0) / n
+            if i > 0:
+                delta = (delta @ self.W[i]) * (zs[0] > 0)
 
-        self.W[1] -= out_w * self.learning_rate
-        self.b[1] -= out_b * self.learning_rate
+        return db_W, db_b
 
-        self.W[0] -= self.learning_rate * hidden_w
-        self.b[0] -= self.learning_rate * hidden_b
-
-
-        return
 
         
 
 
     def train_step(self, x, y, lr):
         loss = self.cost(x,y)
-        self.back(x,y)
+        db_W, db_b = self.back(x,y,lr)
+        for w, dw in zip(self.W, db_W):
+            w -= lr * dw
+        for b, db in zip(self.b, db_b):
+            b -= lr * db
+        
         return loss
         
 
