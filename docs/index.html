@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digit Recognizer</title>
+<meta name="description" content="Draw a digit and a neural network written from scratch in NumPy guesses it.">
+<style>
+  :root {
+    --bg: #f6f6f3; --card: #ffffff; --text: #1c1c1a; --muted: #6b6b66;
+    --line: #e2e2dc; --bar: #d9d9d2; --accent: #2f6fde;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1e1e1c; --text: #ecece6; --muted: #9a9a93;
+      --line: #2e2e2b; --bar: #3a3a36; --accent: #6ea0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; justify-content: center; padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 620px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; display: flex; gap: 24px; flex-wrap: wrap; justify-content: center;
+  }
+  .pad { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  #draw {
+    width: 280px; height: 280px; max-width: 100%; aspect-ratio: 1;
+    background: #000; border-radius: 10px; touch-action: none; cursor: crosshair;
+  }
+  button {
+    font: inherit; padding: 8px 20px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  }
+  button:hover { border-color: var(--muted); }
+  .result { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 12px; }
+  .guess { display: flex; align-items: baseline; gap: 12px; }
+  #digit { font-size: 4rem; font-weight: 700; line-height: 1; min-width: 1ch; }
+  #conf { color: var(--muted); }
+  .bars { display: grid; grid-template-columns: 1.2em 1fr 3.2em; gap: 4px 8px; align-items: center; font-size: 0.9rem; }
+  .track { height: 10px; background: var(--bar); border-radius: 5px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--muted); border-radius: 5px; transition: width 0.15s; }
+  .top .fill { background: var(--accent); }
+  .pct { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .seen { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.85rem; }
+  #small { width: 56px; height: 56px; image-rendering: pixelated; background: #000; border-radius: 4px; }
+  footer { color: var(--muted); font-size: 0.9rem; margin-top: 20px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Draw a digit</h1>
+  <p class="sub">A neural network I wrote from scratch in NumPy (no ML libraries) guesses what you drew.</p>
+
+  <div class="card">
+    <div class="pad">
+      <canvas id="draw" width="280" height="280"></canvas>
+      <button id="clear">Clear</button>
+    </div>
+    <div class="result">
+      <div class="guess"><span id="digit">?</span><span id="conf">draw 0–9 in the box</span></div>
+      <div class="bars" id="bars"></div>
+      <div class="seen"><canvas id="small" width="28" height="28"></canvas>what the network sees (28×28)</div>
+    </div>
+  </div>
+
+  <footer>
+    784 → 128 → 10 network · ReLU + softmax · trained with backprop I implemented by hand ·
+    <span id="acc"></span> on the MNIST test set ·
+    <a href="https://github.com/JohnEsparagus/nueral_number_net">code on GitHub</a>
+  </footer>
+</main>
+
+<script src="weights.js"></script>
+<script>
+// ---- the network: same forward pass as network.py ----
+function forward(x) {
+  const [W0, W1] = WEIGHTS.W, [b0, b1] = WEIGHTS.b;
+  const h = W0.map((row, j) => Math.max(0, row.reduce((s, w, k) => s + w * x[k], b0[j])));  // ReLU hidden layer
+  const z = W1.map((row, j) => row.reduce((s, w, k) => s + w * h[k], b1[j]));               // raw logits
+  const m = Math.max(...z), e = z.map(v => Math.exp(v - m)), sum = e.reduce((a, b) => a + b);
+  return e.map(v => v / sum);                                                                 // softmax
+}
+
+// ---- turn the drawing into an MNIST-style 28x28 image ----
+// MNIST digits fit a 20x20 box and are centred by their centre of mass in a 28x28 frame.
+function toMnist(gray, size) {
+  let x0 = size, y0 = size, x1 = -1, y1 = -1;
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    if (gray[y * size + x] > 0.1) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  }
+  if (x1 < 0) return null;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = Math.max(bw, bh) / 20;
+  const dw = Math.max(1, Math.round(bw / s)), dh = Math.max(1, Math.round(bh / s));
+
+  // shrink the bounding box to fit 20x20, averaging a 4x4 grid of samples per pixel
+  const box = new Float32Array(dw * dh);
+  for (let ty = 0; ty < dh; ty++) for (let tx = 0; tx < dw; tx++) {
+    let acc = 0;
+    for (let sy = 0; sy < 4; sy++) for (let sx = 0; sx < 4; sx++) {
+      const px = Math.min(x1, Math.floor(x0 + (tx + (sx + 0.5) / 4) * s));
+      const py = Math.min(y1, Math.floor(y0 + (ty + (sy + 0.5) / 4) * s));
+      acc += gray[py * size + px];
+    }
+    box[ty * dw + tx] = acc / 16;
+  }
+
+  // place it so its centre of mass lands on the middle of the 28x28 frame
+  let mass = 0, cx = 0, cy = 0;
+  for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) { const v = box[y * dw + x]; mass += v; cx += v * x; cy += v * y; }
+  const ox = Math.round(13.5 - cx / mass), oy = Math.round(13.5 - cy / mass);
+  const out = new Float32Array(784);
+  for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) {
+    const X = x + ox, Y = y + oy;
+    if (X >= 0 && X < 28 && Y >= 0 && Y < 28) out[Y * 28 + X] = Math.min(1, box[y * dw + x]);
+  }
+  return out;
+}
+
+// ---- page wiring ----
+if (typeof document !== "undefined") {
+  const canvas = document.getElementById("draw"), ctx = canvas.getContext("2d");
+  const small = document.getElementById("small").getContext("2d");
+  const bars = document.getElementById("bars");
+  document.getElementById("acc").textContent = (WEIGHTS.test_acc * 100).toFixed(1) + "%";
+
+  const rows = [];
+  for (let d = 0; d < 10; d++) {
+    bars.insertAdjacentHTML("beforeend",
+      `<span>${d}</span><div class="track"><div class="fill"></div></div><span class="pct">0%</span>`);
+    const kids = bars.children;
+    rows.push({ label: kids[kids.length - 3], track: kids[kids.length - 2], pct: kids[kids.length - 1] });
+  }
+
+  function clear() {
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 280, 280);
+    small.fillStyle = "#000"; small.fillRect(0, 0, 28, 28);
+    document.getElementById("digit").textContent = "?";
+    document.getElementById("conf").textContent = "draw 0–9 in the box";
+    rows.forEach(r => { r.track.firstChild.style.width = "0"; r.pct.textContent = "0%"; r.track.className = "track"; });
+  }
+
+  function predict() {
+    const px = ctx.getImageData(0, 0, 280, 280).data, gray = new Float32Array(280 * 280);
+    for (let i = 0; i < gray.length; i++) gray[i] = px[i * 4] / 255;
+    const x = toMnist(gray, 280);
+    if (!x) return;
+
+    const img = small.createImageData(28, 28);
+    x.forEach((v, i) => { img.data.set([v * 255, v * 255, v * 255, 255], i * 4); });
+    small.putImageData(img, 0, 0);
+
+    const p = forward(x), best = p.indexOf(Math.max(...p));
+    document.getElementById("digit").textContent = best;
+    document.getElementById("conf").textContent = (p[best] * 100).toFixed(0) + "% sure";
+    p.forEach((v, d) => {
+      rows[d].track.firstChild.style.width = (v * 100).toFixed(1) + "%";
+      rows[d].pct.textContent = (v * 100).toFixed(0) + "%";
+      rows[d].track.className = d === best ? "track top" : "track";
+    });
+  }
+
+  let drawing = false, last = null;
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) * 280 / r.width, (e.clientY - r.top) * 280 / r.height];
+  }
+  canvas.addEventListener("pointerdown", e => { drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId); move(e); });
+  canvas.addEventListener("pointermove", e => { if (drawing) move(e); });
+  canvas.addEventListener("pointerup", () => { drawing = false; predict(); });
+  function move(e) {
+    const p = pos(e);
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 20; ctx.lineCap = ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke();
+    last = p;
+    predict();
+  }
+  document.getElementById("clear").addEventListener("click", clear);
+  clear();
+}
+</script>
+</body>
+</html>
